@@ -1,6 +1,19 @@
+# sbt
+target/
+project/target/
+project/project/
+
+# Scala
 *.class
 *.tasty
+
+# Logs
 *.log
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# JVM crash logs
 hs_err_pid*
+
+# Metals / VS Code
+.metals/
+.bloop/
+.vscode/

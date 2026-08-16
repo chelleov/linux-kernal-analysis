@@ -17,3 +17,9 @@ hs_err_pid*
 .metals/
 .bloop/
 .vscode/
+
+# Environment
+.env
+
+# Output data
+data/

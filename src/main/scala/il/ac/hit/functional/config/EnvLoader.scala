@@ -21,14 +21,19 @@ class EnvLoader extends IEnvLoader {
     val file = new File(path)
     if (!file.exists()) return Some(Map.empty)
 
-    Some(Source.fromFile(file).getLines().foldLeft(Map.empty[String, String]) { (acc, line) =>
-      val trimmed = line.trim
-      if (trimmed.isEmpty || trimmed.startsWith("#")) acc
-      else trimmed.split("=", 2) match {
-        case Array(key, value) => acc + (key.trim -> value.trim)
-        case _ => acc
-      }
-    })
+    val source = Source.fromFile(file)
+    try {
+      Some(source.getLines().foldLeft(Map.empty[String, String]) { (acc, line) =>
+        val trimmed = line.trim
+        if (trimmed.isEmpty || trimmed.startsWith("#")) acc
+        else trimmed.split("=", 2) match {
+          case Array(key, value) => acc + (key.trim -> value.trim)
+          case _ => acc
+        }
+      })
+    } finally {
+      source.close()
+    }
   }
 
   /**

@@ -1,23 +1,31 @@
-package extraction
+package il.ac.hit.functional.extraction
 
-import model.Commit
+import il.ac.hit.functional.model.Commit
 import spray.json._
 import DefaultJsonProtocol._
 
-/** Parses GitHub API commit JSON into Commit case classes. */
-object CommitParser {
+/**
+ * Parses GitHub API commit JSON into Commit case classes.
+ */
+class CommitParser extends ICommitParser {
 
-  /** Parses a JSON array string into a sequence of Commits.
-    * Malformed entries are silently dropped (parseCommit returns None).
-    */
-  def parse(json: String): Seq[Commit] = {
-    val jsonArray = json.parseJson.convertTo[JsArray]
-    jsonArray.elements.flatMap(parseCommit).toSeq
+  /**
+   * Parses a JSON array string into a sequence of Commits.
+   * Malformed entries are silently dropped (parseCommit returns None).
+   *
+   * @param json the raw JSON string from the GitHub API
+   * @return a sequence of parsed Commit objects
+   */
+  override def parse(json: String): Option[Seq[Commit]] = {
+    if (json == null || json.isEmpty) return None
+
+    Some(json.parseJson.convertTo[JsArray].elements.flatMap(parseCommit).toSeq)
   }
 
-  /** Attempts to parse a single JSON commit object.
-    * Returns None if any required field is missing or malformed.
-    */
+  /**
+   * Attempts to parse a single JSON commit object.
+   * Returns None if any required field is missing or malformed.
+   */
   private def parseCommit(elem: JsValue): Option[Commit] = {
     for {
       sha           <- elem.asJsObject.fields.get("sha").map(_.convertTo[String])
@@ -41,14 +49,31 @@ object CommitParser {
     }
   }
 
-  /** Splits a commit message into subject (first line) and body (rest). */
+  /**
+   * Splits a commit message into subject (first line) and body (rest).
+   */
   private def splitMessage(message: String): (String, String) =
     message.split("\n", 2) match {
       case Array(subject, body) => (subject, body.trim)
       case Array(subject)       => (subject, "")
     }
 
-  /** Parses an ISO-8601 timestamp string into epoch seconds. */
+  /**
+   * Parses an ISO-8601 timestamp string into epoch seconds.
+   */
   private def parseTimestamp(date: String): Long =
     java.time.Instant.parse(date).getEpochSecond
+}
+
+/**
+ * Companion object for CommitParser.
+ */
+object CommitParser {
+
+  /**
+   * Creates a new CommitParser instance.
+   *
+   * @return a new CommitParser
+   */
+  def apply(): CommitParser = new CommitParser()
 }

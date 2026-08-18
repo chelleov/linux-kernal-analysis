@@ -2,6 +2,7 @@ package il.ac.hit.functional.output
 
 import il.ac.hit.functional.model.Commit
 import java.io.{File, PrintWriter}
+import scala.util.Try
 
 /**
  * Writes parsed commits to a CSV file.
@@ -30,11 +31,10 @@ class CsvWriter extends ICsvWriter {
 
     val writer = new PrintWriter(file)
     try {
-      writer.println(header)
-      commits.foreach(c => writer.println(formatRow(c)))
-      Some(())
-    } catch {
-      case _: Exception => None
+      Try {
+        writer.println(header)
+        commits.foreach(c => writer.println(formatRow(c)))
+      }.toOption
     } finally {
       writer.close()
     }

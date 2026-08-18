@@ -1,8 +1,9 @@
 package il.ac.hit.functional
 
-import il.ac.hit.functional.config.{EnvLoader, IEnvLoader}
+import il.ac.hit.functional.config.{EnvLoader, IEnvLoader, ISparkSessionProvider, SparkSessionProvider}
 import il.ac.hit.functional.extraction.{CommitParser, GitExtractor, ICommitParser, IGitExtractor}
-import il.ac.hit.functional.output.{CsvWriter, ICsvWriter}
+import il.ac.hit.functional.output.{CsvWriter, ICsvWriter, ITopContributorsWriter, TopContributorsWriter}
+import il.ac.hit.functional.analysis.{ContributorAnalyzer, IContributorAnalyzer}
 import scala.util.Try
 
 /**
@@ -11,12 +12,14 @@ import scala.util.Try
 object Main {
 
   /**
-   * Main entry point. Launches the data population pipeline.
+   * Main entry point. Runs the data population pipeline, followed by
+   * the Spark-based contributor analysis.
    *
    * @param args command-line arguments (unused)
    */
   def main(args: Array[String]): Unit = {
     populateData()
+    populateTopContributors()
   }
 
   /**
@@ -39,5 +42,26 @@ object Main {
     } yield println(s"Saved ${commits.size} commits to data/commits.csv")
 
     if (result.isEmpty) println("Error: Pipeline failed")
+  }
+
+  /**
+   * Computes the top contributors from commits.csv using Spark,
+   * and writes the result to a CSV file.
+   */
+  def populateTopContributors(): Unit = {
+    val sparkProvider: ISparkSessionProvider = SparkSessionProvider()
+    val analyzer: IContributorAnalyzer = ContributorAnalyzer()
+    val writer: ITopContributorsWriter = TopContributorsWriter()
+
+    val spark = sparkProvider.create("linux-kernel-analysis")
+
+    val result = for {
+      dataset <- analyzer.topContributors(spark, "data/commits.csv", topN = 10)
+      _ <- writer.write(dataset, "data/top_contributors")
+    } yield println("Saved top contributors to data/top_contributors")
+
+    if (result.isLeft) println(s"Error: ${result.left.get}")
+
+    spark.stop()
   }
 }

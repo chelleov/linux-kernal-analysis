@@ -11,6 +11,12 @@ import scala.util.Try
  */
 object Main {
 
+  /**
+   * Application entry point. Populates commit data from GitHub,
+   * then computes and writes contributor statistics.
+   *
+   * @param args command-line arguments (unused)
+   */
   def main(args: Array[String]): Unit = {
     populateData()
     populateTopContributors()

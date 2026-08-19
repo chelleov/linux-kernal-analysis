@@ -8,11 +8,25 @@ import scala.util.{Try, Success, Failure}
 
 /**
  * Fetches commit data from the GitHub REST API.
+ *
+ * Note: I/O and pagination logic are intentionally combined in
+ * fetchPages, since each page request depends on the result of the
+ * previous one. Fully separating I/O from logic here would require
+ * a more advanced effect system (e.g. an IO monad), which is out of
+ * scope for this project. The purely functional part of this class
+ * (mergePages) is kept separate.
  */
 class GitExtractor extends IGitExtractor {
 
   private val gitHubApiBase = "https://api.github.com/repos"
 
+  /**
+   * Fetches the last n commits for the given GitHub repo (owner/name).
+   *
+   * @param repo  the GitHub repository in "owner/name" format
+   * @param count the number of commits to fetch
+   * @return Right with the raw JSON response, or Left with an error message on failure
+   */
   override def extractCommits(repo: String, count: Int): Either[String, String] = {
     if (repo == null || repo.isEmpty) return Left("repo must not be empty")
     if (count <= 0) return Left("count must be positive")
@@ -29,6 +43,11 @@ class GitExtractor extends IGitExtractor {
       .map(mergePages)
   }
 
+  /**
+   * Recursively fetches paginated results from the GitHub API.
+   * Implemented as a tail-recursive function so the call stack does
+   * not grow with the number of pages fetched.
+   */
   @tailrec
   private def fetchPages(
                           client: HttpClient,
@@ -66,12 +85,25 @@ class GitExtractor extends IGitExtractor {
     }
   }
 
+  /**
+   * Strips the outer JSON array brackets and merges page bodies into one JSON
+   * array.
+   */
   private def mergePages(pages: List[String]): String = {
     val inner = pages.map(_.stripPrefix("[").stripSuffix("]")).mkString(",")
     s"[$inner]"
   }
 }
 
+/**
+ * Companion object for GitExtractor.
+ */
 object GitExtractor {
+
+  /**
+   * Creates a new GitExtractor instance.
+   *
+   * @return a new GitExtractor
+   */
   def apply(): GitExtractor = new GitExtractor()
 }

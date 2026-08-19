@@ -1,12 +1,15 @@
 package il.ac.hit.functional.analysis
 
 import il.ac.hit.functional.model.{AuthorRecord, CommitSummary, ContributorCount, ContributorWithId}
-import org.apache.spark.sql.{Dataset, SparkSession}
+import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
 import org.apache.spark.sql.functions.{count, monotonically_increasing_id}
 import scala.util.Try
 
 /**
  * Computes contributor commit statistics using Spark's Dataset API.
+ * I/O (reading CSV files) is kept in the public override methods;
+ * all transformation logic is delegated to pure functions in the
+ * companion object, which operate only on already-loaded data.
  */
 class ContributorAnalyzer extends IContributorAnalyzer {
 
@@ -30,30 +33,11 @@ class ContributorAnalyzer extends IContributorAnalyzer {
     if (csvPath == null || csvPath.isEmpty) return Left("csvPath must not be empty")
     if (topN <= 0) return Left("topN must be positive")
 
-    import spark.implicits._
-
-    // Combinator: two primitive predicates combined via the `and` combinator
-    val validContributor = ContributorFilters.and(
-      ContributorFilters.minCommits(1),
-      ContributorFilters.nameContains("")
-    )
-
     Try {
+      // I/O: reading the raw data from disk
       val rawDf = spark.read.option("header", "true").csv(csvPath)
-
-      // typed Dataset via map, matching the course's Dataset[Record] pattern
-      val authors: Dataset[AuthorRecord] = rawDf
-        .filter($"author_name".isNotNull)
-        .map(row => AuthorRecord(ContributorAnalyzer.normalizeName(row.getAs[String]("author_name"))))
-
-      authors
-        .groupBy($"authorName")
-        .agg(count("*").as("commitCount"))
-        .as[ContributorCount]
-        // closure over validContributor, captured from the enclosing scope inside a Spark transformation
-        .filter(c => validContributor(c))
-        .orderBy($"commitCount".desc)
-        .limit(topN)
+      // Pure: all transformation logic lives in the companion object
+      ContributorAnalyzer.computeTopContributors(rawDf, topN)(spark)
     } match {
       case scala.util.Success(dataset) => Right(dataset)
       case scala.util.Failure(exception) => Left(s"Failed to analyze contributors: ${exception.getMessage}")
@@ -81,11 +65,9 @@ class ContributorAnalyzer extends IContributorAnalyzer {
 
     topContributors(spark, csvPath, topN) match {
       case Right(dataset) =>
-        import spark.implicits._
         Try {
-          dataset
-            .withColumn("id", monotonically_increasing_id().cast("int"))
-            .as[ContributorWithId]
+          // Pure: ID assignment logic in the companion object
+          ContributorAnalyzer.assignSequentialIds(dataset)(spark)
         } match {
           case scala.util.Success(ds) => Right(ds)
           case scala.util.Failure(ex) => Left(s"Failed to assign IDs: ${ex.getMessage}")
@@ -113,16 +95,11 @@ class ContributorAnalyzer extends IContributorAnalyzer {
     if (csvPath == null || csvPath.isEmpty) return Left("csvPath must not be empty")
     if (authorName == null || authorName.isEmpty) return Left("authorName must not be empty")
 
-    import spark.implicits._
-
     Try {
+      // I/O: reading the raw data from disk
       val rawDf = spark.read.option("header", "true").csv(csvPath)
-
-      rawDf
-        .filter($"author_name" === authorName)
-        .select($"author_timestamp".cast("long").as("authorTimestamp"), $"hash", $"subject")
-        .as[CommitSummary]
-        .orderBy($"authorTimestamp".asc)
+      // Pure: filtering/selecting/ordering logic in the companion object
+      ContributorAnalyzer.computeContributorTimeline(rawDf, authorName)(spark)
     } match {
       case scala.util.Success(dataset) => Right(dataset)
       case scala.util.Failure(exception) => Left(s"Failed to build timeline: ${exception.getMessage}")
@@ -131,7 +108,9 @@ class ContributorAnalyzer extends IContributorAnalyzer {
 }
 
 /**
- * Companion object for ContributorAnalyzer.
+ * Companion object for ContributorAnalyzer. Contains only pure functions:
+ * none of the members here perform I/O — they all operate on data that
+ * has already been read by the caller.
  */
 object ContributorAnalyzer {
 
@@ -147,4 +126,69 @@ object ContributorAnalyzer {
    * Composed via andThen, matching the course's Functions Composition material.
    */
   val normalizeName: String => String = trimName andThen capitalizeFirst
+
+  /**
+   * Pure transformation: computes the top N contributors from an
+   * already-loaded raw commits DataFrame. Performs no I/O.
+   *
+   * @param rawDf the raw commits DataFrame, already read from disk
+   * @param topN  number of top contributors to return
+   * @param spark implicit SparkSession, required for Dataset encoders
+   * @return the top N contributors, ordered by commit count descending
+   */
+  def computeTopContributors(rawDf: DataFrame, topN: Int)(implicit spark: SparkSession): Dataset[ContributorCount] = {
+    import spark.implicits._
+
+    // Combinator: two primitive predicates combined via the `and` combinator
+    val validContributor = ContributorFilters.and(
+      ContributorFilters.minCommits(1),
+      ContributorFilters.nameContains("")
+    )
+
+    val authors: Dataset[AuthorRecord] = rawDf
+      .filter($"author_name".isNotNull)
+      .map(row => AuthorRecord(normalizeName(row.getAs[String]("author_name"))))
+
+    authors
+      .groupBy($"authorName")
+      .agg(count("*").as("commitCount"))
+      .as[ContributorCount]
+      // closure over validContributor, captured from the enclosing scope inside a Spark transformation
+      .filter(c => validContributor(c))
+      .orderBy($"commitCount".desc)
+      .limit(topN)
+  }
+
+  /**
+   * Pure transformation: assigns a sequential ID (0 to n-1) to each row
+   * in an already-computed top contributors Dataset. Performs no I/O.
+   *
+   * @param dataset the top contributors Dataset to assign IDs to
+   * @param spark   implicit SparkSession, required for Dataset encoders
+   * @return the same contributors with a sequential id column added
+   */
+  def assignSequentialIds(dataset: Dataset[ContributorCount])(implicit spark: SparkSession): Dataset[ContributorWithId] = {
+    import spark.implicits._
+    dataset
+      .withColumn("id", monotonically_increasing_id().cast("int"))
+      .as[ContributorWithId]
+  }
+
+  /**
+   * Pure transformation: extracts a single contributor's commit timeline
+   * from an already-loaded raw commits DataFrame. Performs no I/O.
+   *
+   * @param rawDf      the raw commits DataFrame, already read from disk
+   * @param authorName the contributor's name to filter by
+   * @param spark      implicit SparkSession, required for Dataset encoders
+   * @return the contributor's commits, ordered chronologically
+   */
+  def computeContributorTimeline(rawDf: DataFrame, authorName: String)(implicit spark: SparkSession): Dataset[CommitSummary] = {
+    import spark.implicits._
+    rawDf
+      .filter($"author_name" === authorName)
+      .select($"author_timestamp".cast("long").as("authorTimestamp"), $"hash", $"subject")
+      .as[CommitSummary]
+      .orderBy($"authorTimestamp".asc)
+  }
 }

@@ -46,9 +46,12 @@ object Main {
 
   /**
    * Computes the top contributors from commits.csv using Spark,
-   * and writes the result to a CSV file.
+   * and writes the result to a CSV file. The number of top
+   * contributors is read from the TOP_CONTRIBUTORS_COUNT environment
+   * variable, defaulting to 10 if not set.
    */
   def populateTopContributors(): Unit = {
+    val envLoader: IEnvLoader = EnvLoader()
     val sparkProvider: ISparkSessionProvider = SparkSessionProvider()
     val analyzer: IContributorAnalyzer = ContributorAnalyzer()
     val writer: ITopContributorsWriter = TopContributorsWriter()
@@ -56,9 +59,11 @@ object Main {
     val spark = sparkProvider.create("linux-kernel-analysis")
 
     val result = for {
-      dataset <- analyzer.topContributors(spark, "data/commits.csv", topN = 10)
+      env <- envLoader.load(".env").toRight("Could not load .env file")
+      topN <- Try(env.getOrElse("TOP_CONTRIBUTORS_COUNT", "10").toInt).toOption.toRight("Invalid TOP_CONTRIBUTORS_COUNT value")
+      dataset <- analyzer.topContributors(spark, "data/commits.csv", topN)
       _ <- writer.write(dataset, "data/top_contributors")
-    } yield println("Saved top contributors to data/top_contributors")
+    } yield println(s"Saved top $topN contributors to data/top_contributors")
 
     if (result.isLeft) println(s"Error: ${result.left.get}")
 

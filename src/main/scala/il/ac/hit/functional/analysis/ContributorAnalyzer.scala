@@ -13,7 +13,7 @@ class ContributorAnalyzer extends IContributorAnalyzer {
   /**
    * Reads commits from a CSV file and returns the top N contributors,
    * ordered by commit count descending. Uses Spark operations: filter,
-   * map, groupBy, agg, orderBy, and limit.
+   * map, groupBy, agg, filter, orderBy, and limit.
    *
    * @param spark   the active SparkSession
    * @param csvPath path to the commits CSV file
@@ -32,6 +32,12 @@ class ContributorAnalyzer extends IContributorAnalyzer {
 
     import spark.implicits._
 
+    // Combinator: two primitive predicates combined via the `and` combinator
+    val validContributor = ContributorFilters.and(
+      ContributorFilters.minCommits(1),
+      ContributorFilters.nameContains("")
+    )
+
     Try {
       val rawDf = spark.read.option("header", "true").csv(csvPath)
 
@@ -44,6 +50,8 @@ class ContributorAnalyzer extends IContributorAnalyzer {
         .groupBy($"authorName")
         .agg(count("*").as("commitCount"))
         .as[ContributorCount]
+        // closure over validContributor, captured from the enclosing scope inside a Spark transformation
+        .filter(c => validContributor(c))
         .orderBy($"commitCount".desc)
         .limit(topN)
     } match {

@@ -2,7 +2,7 @@ package il.ac.hit.functional
 
 import il.ac.hit.functional.config.{EnvLoader, IEnvLoader, ISparkSessionProvider, SparkSessionProvider}
 import il.ac.hit.functional.extraction.{CommitParser, GitExtractor, ICommitParser, IGitExtractor}
-import il.ac.hit.functional.output.{CsvWriter, ICsvWriter, ITopContributorsWriter, TopContributorsWriter}
+import il.ac.hit.functional.output.{CsvWriter, ICsvWriter, IContributorTimelineWriter, ITopContributorsWriter, ContributorTimelineWriter, TopContributorsWriter}
 import il.ac.hit.functional.analysis.{ContributorAnalyzer, IContributorAnalyzer}
 import scala.util.Try
 
@@ -46,15 +46,17 @@ object Main {
 
   /**
    * Computes the top contributors from commits.csv using Spark,
-   * and writes the result to a CSV file. The number of top
-   * contributors is read from the TOP_CONTRIBUTORS_COUNT environment
-   * variable, defaulting to 10 if not set.
+   * writes the result to a CSV file, and generates per-contributor
+   * commit timeline CSVs. The number of top contributors is read
+   * from the TOP_CONTRIBUTORS_COUNT environment variable, defaulting
+   * to 10 if not set.
    */
   def populateTopContributors(): Unit = {
     val envLoader: IEnvLoader = EnvLoader()
     val sparkProvider: ISparkSessionProvider = SparkSessionProvider()
     val analyzer: IContributorAnalyzer = ContributorAnalyzer()
     val writer: ITopContributorsWriter = TopContributorsWriter()
+    val timelineWriter: IContributorTimelineWriter = ContributorTimelineWriter()
 
     val spark = sparkProvider.create("linux-kernel-analysis")
 
@@ -63,7 +65,9 @@ object Main {
       topN <- Try(env.getOrElse("TOP_CONTRIBUTORS_COUNT", "10").toInt).toOption.toRight("Invalid TOP_CONTRIBUTORS_COUNT value")
       dataset <- analyzer.topContributors(spark, "data/commits.csv", topN)
       _ <- writer.write(dataset, "data/top_contributors")
-    } yield println(s"Saved top $topN contributors to data/top_contributors")
+      datasetWithId <- analyzer.topContributorsWithId(spark, "data/commits.csv", topN)
+      _ <- timelineWriter.write(datasetWithId, "data/commits.csv", spark, analyzer, "data/top_contributors")
+    } yield println(s"Saved top $topN contributors and their timelines to data/top_contributors")
 
     if (result.isLeft) println(s"Error: ${result.left.get}")
 

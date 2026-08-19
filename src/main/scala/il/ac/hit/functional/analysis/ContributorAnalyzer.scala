@@ -1,8 +1,8 @@
 package il.ac.hit.functional.analysis
 
-import il.ac.hit.functional.model.{AuthorRecord, ContributorCount}
+import il.ac.hit.functional.model.{AuthorRecord, CommitSummary, ContributorCount, ContributorWithId}
 import org.apache.spark.sql.{Dataset, SparkSession}
-import org.apache.spark.sql.functions.count
+import org.apache.spark.sql.functions.{count, monotonically_increasing_id}
 import scala.util.Try
 
 /**
@@ -49,6 +49,75 @@ class ContributorAnalyzer extends IContributorAnalyzer {
     } match {
       case scala.util.Success(dataset) => Right(dataset)
       case scala.util.Failure(exception) => Left(s"Failed to analyze contributors: ${exception.getMessage}")
+    }
+  }
+
+  /**
+   * Returns the top N contributors with sequential IDs (0 to n-1).
+   * Uses monotonically_increasing_id to assign IDs after ordering by commit count.
+   *
+   * @param spark   the active SparkSession
+   * @param csvPath path to the commits CSV file
+   * @param topN    number of top contributors to return
+   * @return Right with a Dataset of ContributorWithId on success,
+   *         or Left with an error message on failure
+   */
+  override def topContributorsWithId(
+                                      spark: SparkSession,
+                                      csvPath: String,
+                                      topN: Int
+                                    ): Either[String, Dataset[ContributorWithId]] = {
+    if (spark == null) return Left("spark session must not be null")
+    if (csvPath == null || csvPath.isEmpty) return Left("csvPath must not be empty")
+    if (topN <= 0) return Left("topN must be positive")
+
+    topContributors(spark, csvPath, topN) match {
+      case Right(dataset) =>
+        import spark.implicits._
+        Try {
+          dataset
+            .withColumn("id", monotonically_increasing_id().cast("int"))
+            .as[ContributorWithId]
+        } match {
+          case scala.util.Success(ds) => Right(ds)
+          case scala.util.Failure(ex) => Left(s"Failed to assign IDs: ${ex.getMessage}")
+        }
+      case Left(err) => Left(err)
+    }
+  }
+
+  /**
+   * Returns the commit timeline for a single contributor, sorted by timestamp.
+   * Uses Spark filter, select, and orderBy to extract the timeline.
+   *
+   * @param spark      the active SparkSession
+   * @param csvPath    path to the commits CSV file
+   * @param authorName the contributor's name to filter by
+   * @return Right with a Dataset of CommitSummary on success,
+   *         or Left with an error message on failure
+   */
+  override def contributorTimeline(
+                                    spark: SparkSession,
+                                    csvPath: String,
+                                    authorName: String
+                                  ): Either[String, Dataset[CommitSummary]] = {
+    if (spark == null) return Left("spark session must not be null")
+    if (csvPath == null || csvPath.isEmpty) return Left("csvPath must not be empty")
+    if (authorName == null || authorName.isEmpty) return Left("authorName must not be empty")
+
+    import spark.implicits._
+
+    Try {
+      val rawDf = spark.read.option("header", "true").csv(csvPath)
+
+      rawDf
+        .filter($"author_name" === authorName)
+        .select($"author_timestamp".cast("long").as("authorTimestamp"), $"hash", $"subject")
+        .as[CommitSummary]
+        .orderBy($"authorTimestamp".asc)
+    } match {
+      case scala.util.Success(dataset) => Right(dataset)
+      case scala.util.Failure(exception) => Left(s"Failed to build timeline: ${exception.getMessage}")
     }
   }
 }

@@ -1,7 +1,7 @@
 package il.ac.hit.functional.extraction
 
 /**
- * Trait defining the contract for fetching commit data from the GitHub REST API.
+ * Trait defining the contract for fetching commit data from GitHub.
  */
 trait IGitExtractor {
 
@@ -10,7 +10,7 @@ trait IGitExtractor {
    *
    * @param repo  the GitHub repository in "owner/name" format
    * @param count the number of commits to fetch
-   * @return the raw JSON response wrapped in Some, or None on failure
+   * @return Right with the raw JSON response, or Left with an error message on failure
    */
-  def extractCommits(repo: String, count: Int): Option[String]
+  def extractCommits(repo: String, count: Int): Either[String, String]
 }

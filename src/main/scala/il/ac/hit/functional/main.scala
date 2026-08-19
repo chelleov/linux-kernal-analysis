@@ -11,12 +11,6 @@ import scala.util.Try
  */
 object Main {
 
-  /**
-   * Main entry point. Runs the data population pipeline, followed by
-   * the Spark-based contributor analysis.
-   *
-   * @param args command-line arguments (unused)
-   */
   def main(args: Array[String]): Unit = {
     populateData()
     populateTopContributors()
@@ -36,7 +30,7 @@ object Main {
       env <- envLoader.load(".env")
       repo <- envLoader.require("LINUX_REPO_PATH", env)
       count <- Try(env.getOrElse("COMMITS_COUNT", "100").toInt).toOption
-      raw <- gitExtractor.extractCommits(repo, count)
+      raw <- gitExtractor.extractCommits(repo, count).toOption
       commits <- commitParser.parse(raw)
       _ <- csvWriter.write("data/commits.csv", commits)
     } yield println(s"Saved ${commits.size} commits to data/commits.csv")
@@ -47,9 +41,7 @@ object Main {
   /**
    * Computes the top contributors from commits.csv using Spark,
    * writes the result to a CSV file, and generates per-contributor
-   * commit timeline CSVs. The number of top contributors is read
-   * from the TOP_CONTRIBUTORS_COUNT environment variable, defaulting
-   * to 10 if not set.
+   * commit timeline CSVs.
    */
   def populateTopContributors(): Unit = {
     val envLoader: IEnvLoader = EnvLoader()

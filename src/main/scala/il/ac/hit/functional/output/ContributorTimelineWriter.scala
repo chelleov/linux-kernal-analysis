@@ -30,6 +30,7 @@ class ContributorTimelineWriter extends IContributorTimelineWriter {
                       basePath: String
                     ): Either[String, Unit] = {
     if (contributors == null) return Left("contributors must not be null")
+    if (analyzer == null) return Left("analyzer must not be null")
     if (basePath == null || basePath.isEmpty) return Left("basePath must not be empty")
 
     val results = contributors.collect().toList.map { contributor =>

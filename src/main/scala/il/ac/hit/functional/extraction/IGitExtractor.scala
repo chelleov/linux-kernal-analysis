@@ -10,7 +10,8 @@ trait IGitExtractor {
    *
    * @param repo  the GitHub repository in "owner/name" format
    * @param count the number of commits to fetch
+   * @param token optional GitHub personal access token, used to raise the API rate limit
    * @return Right with the raw JSON response, or Left with an error message on failure
    */
-  def extractCommits(repo: String, count: Int): Either[String, String]
+  def extractCommits(repo: String, count: Int, token: Option[String] = None): Either[String, String]
 }

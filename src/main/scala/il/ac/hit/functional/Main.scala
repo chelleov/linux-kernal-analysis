@@ -1,9 +1,10 @@
 package il.ac.hit.functional
 
+import il.ac.hit.functional.analysis.{ContributorAnalyzer, IContributorAnalyzer}
 import il.ac.hit.functional.config.{EnvLoader, IEnvLoader, ISparkSessionProvider, SparkSessionProvider}
 import il.ac.hit.functional.extraction.{CommitParser, GitExtractor, ICommitParser, IGitExtractor}
-import il.ac.hit.functional.output.{CsvWriter, ICsvWriter, IContributorTimelineWriter, ITopContributorsWriter, ContributorTimelineWriter, TopContributorsWriter}
-import il.ac.hit.functional.analysis.{ContributorAnalyzer, IContributorAnalyzer}
+import il.ac.hit.functional.model.ContributorCount
+import il.ac.hit.functional.output.{ContributorTimelineWriter, CsvWriter, IContributorTimelineWriter, ICsvWriter, ITopContributorsWriter, TopContributorsWriter}
 import scala.util.Try
 
 /**
@@ -36,7 +37,12 @@ object Main {
       env <- envLoader.load(".env")
       repo <- envLoader.require("LINUX_REPO_PATH", env)
       count <- Try(env.getOrElse("COMMITS_COUNT", "100").toInt).toOption
-      raw <- gitExtractor.extractCommits(repo, count).toOption
+      raw <- gitExtractor.extractCommits(repo, count, env.get("GITHUB_TOKEN")) match {
+        case Right(json) => Some(json)
+        case Left(err) =>
+          println(s"Error fetching commits: $err")
+          None
+      }
       commits <- commitParser.parse(raw)
       _ <- csvWriter.write("data/commits.csv", commits)
     } yield println(s"Saved ${commits.size} commits to data/commits.csv")
@@ -57,17 +63,21 @@ object Main {
     val timelineWriter: IContributorTimelineWriter = ContributorTimelineWriter()
 
     val spark = sparkProvider.create("linux-kernel-analysis")
+    import spark.implicits._
 
     val result = for {
       env <- envLoader.load(".env").toRight("Could not load .env file")
       topN <- Try(env.getOrElse("TOP_CONTRIBUTORS_COUNT", "10").toInt).toOption.toRight("Invalid TOP_CONTRIBUTORS_COUNT value")
-      dataset <- analyzer.topContributors(spark, "data/commits.csv", topN)
-      _ <- writer.write(dataset, "data/top_contributors")
       datasetWithId <- analyzer.topContributorsWithId(spark, "data/commits.csv", topN)
+      dataset = datasetWithId.map(c => ContributorCount(c.authorName, c.commitCount))
+      _ <- writer.write(dataset, "data/top_contributors")
       _ <- timelineWriter.write(datasetWithId, "data/commits.csv", spark, analyzer, "data/top_contributors")
     } yield println(s"Saved top $topN contributors and their timelines to data/top_contributors")
 
-    if (result.isLeft) println(s"Error: ${result.left.get}")
+    result match {
+      case Left(err) => println(s"Error: $err")
+      case Right(_)  => // success message already printed above
+    }
 
     spark.stop()
   }

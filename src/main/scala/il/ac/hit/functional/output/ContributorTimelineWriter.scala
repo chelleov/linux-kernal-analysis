@@ -14,8 +14,6 @@ class ContributorTimelineWriter extends IContributorTimelineWriter {
 
   /**
    * Writes a CSV file for each contributor in the dataset.
-   * Collects the small contributors Dataset to iterate over IDs and names,
-   * then uses Spark to filter and write each contributor's timeline.
    *
    * @param contributors the Dataset of top contributors with IDs
    * @param csvPath      path to the source commits CSV file
@@ -32,38 +30,21 @@ class ContributorTimelineWriter extends IContributorTimelineWriter {
                       basePath: String
                     ): Either[String, Unit] = {
     if (contributors == null) return Left("contributors must not be null")
-    if (csvPath == null || csvPath.isEmpty) return Left("csvPath must not be empty")
-    if (spark == null) return Left("spark session must not be null")
-    if (analyzer == null) return Left("analyzer must not be null")
     if (basePath == null || basePath.isEmpty) return Left("basePath must not be empty")
 
-    // Collect the small top-contributors Dataset (typically 10 rows)
-    val collected = Try(contributors.collect()).toOption
-      .getOrElse(return Left("Failed to collect contributors"))
-
-    // Write timeline for each contributor
-    collected.foreach { contributor =>
+    val results = contributors.collect().toList.map { contributor =>
       val outputPath = s"$basePath/${contributor.id}"
       analyzer.contributorTimeline(spark, csvPath, contributor.authorName) match {
+        case Left(err) =>
+          Left(s"Failed to get timeline for ${contributor.authorName}: $err")
         case Right(timeline) =>
           Try {
-            timeline
-              .coalesce(1)
-              .write
-              .mode("overwrite")
-              .option("header", "true")
-              .csv(outputPath)
-          } match {
-            case scala.util.Failure(ex) =>
-              return Left(s"Failed to write timeline for ${contributor.authorName}: ${ex.getMessage}")
-            case _ => // success
-          }
-        case Left(err) =>
-          return Left(s"Failed to get timeline for ${contributor.authorName}: $err")
+            timeline.coalesce(1).write.mode("overwrite").option("header", "true").csv(outputPath)
+          }.toEither.left.map(ex => s"Failed to write timeline for ${contributor.authorName}: ${ex.getMessage}")
       }
     }
 
-    Right(())
+    results.find(_.isLeft).getOrElse(Right(()))
   }
 }
 

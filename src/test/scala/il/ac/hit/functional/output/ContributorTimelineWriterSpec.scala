@@ -6,6 +6,7 @@ import org.apache.spark.sql.{Dataset, Encoder, Encoders, SparkSession}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+
 import java.io.{File, PrintWriter}
 
 /**
@@ -92,17 +93,14 @@ class ContributorTimelineWriterSpec extends AnyFlatSpec with Matchers with Befor
   it should "create timeline CSV files for each contributor" in {
     val ds = createContributorDs(("Alice", 2L, 0), ("Bob", 1L, 1))
     val basePath = outputDir.getPath
-
     val result = writer.write(ds, testCsv.getPath, spark, analyzer, basePath)
     result shouldBe Right(())
 
-    // Check that output directories were created
     val output0 = new File(basePath, "0")
     val output1 = new File(basePath, "1")
     output0.exists() shouldBe true
     output1.exists() shouldBe true
 
-    // Check that part files exist inside each directory
     output0.listFiles().exists(_.getName.startsWith("part-")) shouldBe true
     output1.listFiles().exists(_.getName.startsWith("part-")) shouldBe true
   }
@@ -110,7 +108,6 @@ class ContributorTimelineWriterSpec extends AnyFlatSpec with Matchers with Befor
   it should "return Right for empty contributors dataset" in {
     val ds = createContributorDs()
     val basePath = outputDir.getPath
-
     val result = writer.write(ds, testCsv.getPath, spark, analyzer, basePath)
     result shouldBe Right(())
   }

@@ -11,7 +11,8 @@ trait ISparkSessionProvider {
    * Creates a local SparkSession for the application.
    *
    * @param appName the Spark application name
-   * @return a configured SparkSession
+   * @return Right with a configured SparkSession on success,
+   *         or Left with an error message if appName is invalid
    */
-  def create(appName: String): SparkSession
+  def create(appName: String): Either[String, SparkSession]
 }

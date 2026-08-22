@@ -5,7 +5,7 @@ ThisBuild / scalaVersion := "2.12.19"
 
 lazy val root = (project in file("."))
   .settings(
-    name := "spark_hello"
+    name := "linux-kernel-analysis"
   )
 
 libraryDependencies += "org.apache.spark" %% "spark-core" % "3.3.0"

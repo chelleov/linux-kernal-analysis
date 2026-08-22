@@ -1,6 +1,7 @@
 package il.ac.hit.functional.config
 
 import org.apache.spark.sql.SparkSession
+import scala.util.Try
 
 /**
  * Provides a local SparkSession for the pipeline.
@@ -11,17 +12,24 @@ class SparkSessionProvider extends ISparkSessionProvider {
    * Creates a local SparkSession for the application.
    *
    * @param appName the Spark application name
-   * @return a configured SparkSession
+   * @return Right with a configured SparkSession on success,
+   *         or Left with an error message if appName is null or empty,
+   *         or if session creation fails
    */
-  override def create(appName: String = "linux-kernel-analysis"): SparkSession = {
-    if (appName == null || appName.isEmpty)
-      throw new IllegalArgumentException("appName must not be empty")
+  override def create(appName: String = "linux-kernel-analysis"): Either[String, SparkSession] = {
+    if (appName == null || appName.isEmpty) return Left("appName must not be empty")
 
-    SparkSession
-      .builder()
-      .appName(appName)
-      .master("local[*]")
-      .getOrCreate()
+    Try {
+      SparkSession
+        .builder()
+        .appName(appName)
+        .master("local[*]")
+        .getOrCreate()
+    } match {
+      case scala.util.Success(session) => Right(session)
+      case scala.util.Failure(exception) =>
+        Left(s"Failed to create SparkSession: ${exception.getMessage}")
+    }
   }
 }
 

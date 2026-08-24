@@ -8,10 +8,13 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import java.io.{File, PrintWriter}
 
-/**
- * Unit tests for the ContributorTimelineWriter class using a local Spark session.
- */
-class ContributorTimelineWriterSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
+/** Unit tests for the ContributorTimelineWriter class using a local Spark
+  * session.
+  */
+class ContributorTimelineWriterSpec
+    extends AnyFlatSpec
+    with Matchers
+    with BeforeAndAfterAll {
 
   private var spark: SparkSession = _
   private val analyzer: IContributorAnalyzer = ContributorAnalyzer()
@@ -21,7 +24,8 @@ class ContributorTimelineWriterSpec extends AnyFlatSpec with Matchers with Befor
   private val outputDir = new File(testDir, "output")
 
   override def beforeAll(): Unit = {
-    spark = SparkSession.builder()
+    spark = SparkSession
+      .builder()
       .appName("ContributorTimelineWriterSpec")
       .master("local[*]")
       .getOrCreate()
@@ -36,10 +40,18 @@ class ContributorTimelineWriterSpec extends AnyFlatSpec with Matchers with Befor
   private def writeTestCsv(): Unit = {
     val writer = new PrintWriter(testCsv)
     try {
-      writer.println("hash,author_name,author_email,author_timestamp,committer_name,committer_email,commit_timestamp,subject")
-      writer.println("aaa111,Alice,alice@example.com,1000,Bob,bob@example.com,1000,First commit")
-      writer.println("bbb222,Bob,bob@example.com,2000,Alice,alice@example.com,2000,Second commit")
-      writer.println("ccc333,Alice,alice@example.com,3000,Bob,bob@example.com,3000,Third commit")
+      writer.println(
+        "hash,author_name,author_email,author_timestamp,committer_name,committer_email,commit_timestamp,subject"
+      )
+      writer.println(
+        "aaa111,Alice,alice@example.com,1000,Bob,bob@example.com,1000,First commit"
+      )
+      writer.println(
+        "bbb222,Bob,bob@example.com,2000,Alice,alice@example.com,2000,Second commit"
+      )
+      writer.println(
+        "ccc333,Alice,alice@example.com,3000,Bob,bob@example.com,3000,Third commit"
+      )
     } finally {
       writer.close()
     }
@@ -58,35 +70,48 @@ class ContributorTimelineWriterSpec extends AnyFlatSpec with Matchers with Befor
     file.delete()
   }
 
-  private def createContributorDs(contributors: (String, Long, Int)*): Dataset[ContributorWithId] = {
-    val encoder: Encoder[ContributorWithId] = Encoders.product[ContributorWithId]
+  private def createContributorDs(
+      contributors: (String, Long, Int)*
+  ): Dataset[ContributorWithId] = {
+    val encoder: Encoder[ContributorWithId] =
+      Encoders.product[ContributorWithId]
     spark.createDataset(contributors.map { case (name, count, id) =>
       ContributorWithId(name, count, id)
     })(encoder)
   }
 
   "write" should "return Left for null contributors" in {
-    writer.write(null, "any.csv", spark, analyzer, "out") shouldBe Left("contributors must not be null")
+    writer.write(null, "any.csv", spark, analyzer, "out") shouldBe Left(
+      "contributors must not be null"
+    )
   }
 
   it should "return Left for empty csvPath" in {
     val ds = createContributorDs(("Alice", 2L, 0))
-    writer.write(ds, "", spark, analyzer, "out") shouldBe Left("csvPath must not be empty")
+    writer.write(ds, "", spark, analyzer, "out") shouldBe Left(
+      "csvPath must not be empty"
+    )
   }
 
   it should "return Left for null spark" in {
     val ds = createContributorDs(("Alice", 2L, 0))
-    writer.write(ds, "any.csv", null, analyzer, "out") shouldBe Left("spark session must not be null")
+    writer.write(ds, "any.csv", null, analyzer, "out") shouldBe Left(
+      "spark session must not be null"
+    )
   }
 
   it should "return Left for null analyzer" in {
     val ds = createContributorDs(("Alice", 2L, 0))
-    writer.write(ds, "any.csv", spark, null, "out") shouldBe Left("analyzer must not be null")
+    writer.write(ds, "any.csv", spark, null, "out") shouldBe Left(
+      "analyzer must not be null"
+    )
   }
 
   it should "return Left for empty basePath" in {
     val ds = createContributorDs(("Alice", 2L, 0))
-    writer.write(ds, "any.csv", spark, analyzer, "") shouldBe Left("basePath must not be empty")
+    writer.write(ds, "any.csv", spark, analyzer, "") shouldBe Left(
+      "basePath must not be empty"
+    )
   }
 
   it should "create timeline CSV files for each contributor" in {

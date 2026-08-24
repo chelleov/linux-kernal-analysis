@@ -6,12 +6,12 @@ import org.scalatest.matchers.should.Matchers
 import java.io.File
 import scala.io.Source
 
-/**
- * Unit tests for the CsvWriter class.
- */
-class CsvWriterSpec extends AnyFlatSpec with Matchers {
+/** Unit tests for the ContributorsCommitsWriter class.
+  */
+class ContributorsCommitsWriterSpec extends AnyFlatSpec with Matchers {
 
-  private val csvWriter: ICsvWriter = CsvWriter()
+  private val csvWriter: IContributorsCommitsWriter =
+    ContributorsCommitsWriter()
   private val testDir = new File("test-csv")
   private val testFile = new File(testDir, "output.csv")
 
@@ -51,7 +51,8 @@ class CsvWriterSpec extends AnyFlatSpec with Matchers {
   it should "write header and data to file" in {
     testDir.mkdirs()
     try {
-      val commits = Seq(sampleCommit(), sampleCommit(hash = "def456", subject = "Second"))
+      val commits =
+        Seq(sampleCommit(), sampleCommit(hash = "def456", subject = "Second"))
       val result = csvWriter.write(testFile.getPath, commits)
       result shouldBe Some(())
 

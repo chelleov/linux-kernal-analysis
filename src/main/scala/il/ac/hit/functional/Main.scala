@@ -16,9 +16,9 @@ import il.ac.hit.functional.extraction.{
 import il.ac.hit.functional.model.ContributorCount
 import il.ac.hit.functional.output.{
   ContributorTimelineWriter,
-  CsvWriter,
+  ContributorsCommitsWriter,
   IContributorTimelineWriter,
-  ICsvWriter,
+  IContributorsCommitsWriter,
   ITopContributorsWriter,
   TopContributorsWriter
 }
@@ -46,12 +46,14 @@ object Main {
     val envLoader: IEnvLoader = EnvLoader()
     val commitParser: ICommitParser = CommitParser()
     val gitExtractor: IGitExtractor = GitExtractor()
-    val csvWriter: ICsvWriter = CsvWriter()
+    val csvWriter: IContributorsCommitsWriter = ContributorsCommitsWriter()
 
     val result = for {
       env <- envLoader.load(".env")
       repo <- envLoader.require("LINUX_REPO_PATH", env)
       count <- Try(env.getOrElse("COMMITS_COUNT", "100").toInt).toOption
+      // The value of GITHUB_TOKEN is optional
+      // we pass the result of Map.get() to gitExtractor.extractCommits() to not halt the sequence
       raw <- gitExtractor.extractCommits(
         repo,
         count,
@@ -79,36 +81,38 @@ object Main {
     val writer: ITopContributorsWriter = TopContributorsWriter()
     val timelineWriter: IContributorTimelineWriter = ContributorTimelineWriter()
 
-    val result = sparkProvider.create("linux-kernel-analysis").flatMap { spark =>
-      try {
-        import spark.implicits._
-        for {
-          env <- envLoader.load(".env").toRight("Could not load .env file")
-          topN <- Try(env.getOrElse("TOP_CONTRIBUTORS_COUNT", "10").toInt).toOption
-            .toRight("Invalid TOP_CONTRIBUTORS_COUNT value")
-          datasetWithId <- analyzer.topContributorsWithId(
-            spark,
-            "data/commits.csv",
-            topN
+    val result =
+      sparkProvider.create("linux-kernel-analysis").flatMap { spark =>
+        try {
+          import spark.implicits._
+          for {
+            env <- envLoader.load(".env").toRight("Could not load .env file")
+            topN <- Try(
+              env.getOrElse("TOP_CONTRIBUTORS_COUNT", "10").toInt
+            ).toOption
+              .toRight("Invalid TOP_CONTRIBUTORS_COUNT value")
+            datasetWithId <- analyzer.topContributorsWithId(
+              spark,
+              "data/commits.csv",
+              topN
+            )
+            dataset = datasetWithId
+              .map(c => ContributorCount(c.authorName, c.commitCount))
+            _ <- writer.write(dataset, "data/top_contributors")
+            _ <- timelineWriter.write(
+              datasetWithId,
+              "data/commits.csv",
+              spark,
+              analyzer,
+              "data/top_contributors"
+            )
+          } yield println(
+            s"Saved top $topN contributors and their timelines to data/top_contributors"
           )
-          dataset = datasetWithId.map(c =>
-            ContributorCount(c.authorName, c.commitCount)
-          )
-          _ <- writer.write(dataset, "data/top_contributors")
-          _ <- timelineWriter.write(
-            datasetWithId,
-            "data/commits.csv",
-            spark,
-            analyzer,
-            "data/top_contributors"
-          )
-        } yield println(
-          s"Saved top $topN contributors and their timelines to data/top_contributors"
-        )
-      } finally {
-        spark.stop()
+        } finally {
+          spark.stop()
+        }
       }
-    }
 
     result match {
       case Left(err) => println(s"Error: $err")

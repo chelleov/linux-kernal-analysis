@@ -4,9 +4,8 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import java.io.{File, PrintWriter}
 
-/**
- * Unit tests for the EnvLoader class.
- */
+/** Unit tests for the EnvLoader class.
+  */
 class EnvLoaderSpec extends AnyFlatSpec with Matchers {
 
   private val envLoader: IEnvLoader = EnvLoader()

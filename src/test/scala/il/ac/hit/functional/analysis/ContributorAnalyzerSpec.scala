@@ -6,11 +6,13 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import java.io.{File, PrintWriter}
 
-/**
- * Unit tests for the ContributorAnalyzer's topContributorsWithId
- * and contributorTimeline methods using a local Spark session.
- */
-class ContributorAnalyzerSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
+/** Unit tests for the ContributorAnalyzer's topContributorsWithId and
+  * contributorTimeline methods using a local Spark session.
+  */
+class ContributorAnalyzerSpec
+    extends AnyFlatSpec
+    with Matchers
+    with BeforeAndAfterAll {
 
   private var spark: SparkSession = _
   private val analyzer: IContributorAnalyzer = ContributorAnalyzer()
@@ -18,7 +20,8 @@ class ContributorAnalyzerSpec extends AnyFlatSpec with Matchers with BeforeAndAf
   private val testCsv = new File(testDir, "commits.csv")
 
   override def beforeAll(): Unit = {
-    spark = SparkSession.builder()
+    spark = SparkSession
+      .builder()
       .appName("ContributorAnalyzerSpec")
       .master("local[*]")
       .getOrCreate()
@@ -33,13 +36,27 @@ class ContributorAnalyzerSpec extends AnyFlatSpec with Matchers with BeforeAndAf
   private def writeTestCsv(): Unit = {
     val writer = new PrintWriter(testCsv)
     try {
-      writer.println("hash,author_name,author_email,author_timestamp,committer_name,committer_email,commit_timestamp,subject")
-      writer.println("aaa111,Alice,alice@example.com,1000,Bob,bob@example.com,1000,First commit")
-      writer.println("bbb222,Bob,bob@example.com,2000,Alice,alice@example.com,2000,Second commit")
-      writer.println("ccc333,Alice,alice@example.com,3000,Bob,bob@example.com,3000,Third commit")
-      writer.println("ddd444,Charlie,charlie@example.com,4000,Bob,bob@example.com,4000,Fourth commit")
-      writer.println("eee555,Alice,alice@example.com,5000,Bob,bob@example.com,5000,Fifth commit")
-      writer.println("fff666,Bob,bob@example.com,6000,Alice,alice@example.com,6000,Sixth commit")
+      writer.println(
+        "hash,author_name,author_email,author_timestamp,committer_name,committer_email,commit_timestamp,subject"
+      )
+      writer.println(
+        "aaa111,Alice,alice@example.com,1000,Bob,bob@example.com,1000,First commit"
+      )
+      writer.println(
+        "bbb222,Bob,bob@example.com,2000,Alice,alice@example.com,2000,Second commit"
+      )
+      writer.println(
+        "ccc333,Alice,alice@example.com,3000,Bob,bob@example.com,3000,Third commit"
+      )
+      writer.println(
+        "ddd444,Charlie,charlie@example.com,4000,Bob,bob@example.com,4000,Fourth commit"
+      )
+      writer.println(
+        "eee555,Alice,alice@example.com,5000,Bob,bob@example.com,5000,Fifth commit"
+      )
+      writer.println(
+        "fff666,Bob,bob@example.com,6000,Alice,alice@example.com,6000,Sixth commit"
+      )
     } finally {
       writer.close()
     }
@@ -51,15 +68,21 @@ class ContributorAnalyzerSpec extends AnyFlatSpec with Matchers with BeforeAndAf
   }
 
   "topContributorsWithId" should "return Left for null spark" in {
-    analyzer.topContributorsWithId(null, "any.csv", 10) shouldBe Left("spark session must not be null")
+    analyzer.topContributorsWithId(null, "any.csv", 10) shouldBe Left(
+      "spark session must not be null"
+    )
   }
 
   it should "return Left for empty csvPath" in {
-    analyzer.topContributorsWithId(spark, "", 10) shouldBe Left("csvPath must not be empty")
+    analyzer.topContributorsWithId(spark, "", 10) shouldBe Left(
+      "csvPath must not be empty"
+    )
   }
 
   it should "return Left for non-positive topN" in {
-    analyzer.topContributorsWithId(spark, testCsv.getPath, 0) shouldBe Left("topN must be positive")
+    analyzer.topContributorsWithId(spark, testCsv.getPath, 0) shouldBe Left(
+      "topN must be positive"
+    )
   }
 
   it should "assign sequential IDs starting from 0" in {
@@ -86,15 +109,21 @@ class ContributorAnalyzerSpec extends AnyFlatSpec with Matchers with BeforeAndAf
   }
 
   "contributorTimeline" should "return Left for null spark" in {
-    analyzer.contributorTimeline(null, "any.csv", "Alice") shouldBe Left("spark session must not be null")
+    analyzer.contributorTimeline(null, "any.csv", "Alice") shouldBe Left(
+      "spark session must not be null"
+    )
   }
 
   it should "return Left for empty csvPath" in {
-    analyzer.contributorTimeline(spark, "", "Alice") shouldBe Left("csvPath must not be empty")
+    analyzer.contributorTimeline(spark, "", "Alice") shouldBe Left(
+      "csvPath must not be empty"
+    )
   }
 
   it should "return Left for empty authorName" in {
-    analyzer.contributorTimeline(spark, testCsv.getPath, "") shouldBe Left("authorName must not be empty")
+    analyzer.contributorTimeline(spark, testCsv.getPath, "") shouldBe Left(
+      "authorName must not be empty"
+    )
   }
 
   it should "return commits sorted by timestamp for a given author" in {

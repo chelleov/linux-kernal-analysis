@@ -3,9 +3,8 @@ package il.ac.hit.functional.extraction
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-/**
- * Unit tests for the CommitParser class.
- */
+/** Unit tests for the CommitParser class.
+  */
 class CommitParserSpec extends AnyFlatSpec with Matchers {
 
   private val commitParser: ICommitParser = CommitParser()

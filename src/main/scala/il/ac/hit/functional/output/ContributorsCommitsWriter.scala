@@ -4,22 +4,23 @@ import il.ac.hit.functional.model.Commit
 import java.io.{File, PrintWriter}
 import scala.util.Try
 
-/**
- * Writes parsed commits to a CSV file.
- */
-class CsvWriter extends ICsvWriter {
+/** Writes parsed contributors' commits to a CSV file.
+  */
+class ContributorsCommitsWriter extends IContributorsCommitsWriter {
 
   private val header =
     "hash,author_name,author_email,author_timestamp,committer_name,committer_email,commit_timestamp,subject"
 
-  /**
-   * Writes commits to a CSV file at the given path.
-   * Creates parent directories if they don't exist.
-   *
-   * @param path    the file path to write to
-   * @param commits the sequence of Commit objects to write
-   * @return Some(()) on success, None on failure
-   */
+  /** Writes commits to a CSV file at the given path. Creates parent directories
+    * if they don't exist.
+    *
+    * @param path
+    *   the file path to write to
+    * @param commits
+    *   the sequence of Commit objects to write
+    * @return
+    *   Some(()) on success, None on failure
+    */
   override def write(path: String, commits: Seq[Commit]): Option[Unit] = {
     if (path == null || path.isEmpty) return None
     if (commits == null) return None
@@ -40,16 +41,14 @@ class CsvWriter extends ICsvWriter {
     }
   }
 
-  /**
-   * Formats a single Commit as a CSV row.
-   */
+  /** Formats a single Commit as a CSV row.
+    */
   private def formatRow(c: Commit): String =
     s"${escape(c.hash)},${escape(c.authorName)},${escape(c.authorEmail)},${c.authorTimestamp}," +
-    s"${escape(c.committerName)},${escape(c.committerEmail)},${c.commitTimestamp},${escape(c.subject)}"
+      s"${escape(c.committerName)},${escape(c.committerEmail)},${c.commitTimestamp},${escape(c.subject)}"
 
-  /**
-   * Escapes a value for safe CSV embedding.
-   */
+  /** Escapes a value for safe CSV embedding.
+    */
   private def escape(value: String): String =
     if (value.contains(",") || value.contains("\"") || value.contains("\n"))
       "\"" + value.replace("\"", "\"\"") + "\""
@@ -57,15 +56,14 @@ class CsvWriter extends ICsvWriter {
       value
 }
 
-/**
- * Companion object for CsvWriter.
- */
-object CsvWriter {
+/** Companion object for ContributorsCommitsWriter.
+  */
+object ContributorsCommitsWriter {
 
-  /**
-   * Creates a new CsvWriter instance.
-   *
-   * @return a new CsvWriter
-   */
-  def apply(): CsvWriter = new CsvWriter()
+  /** Creates a new ContributorsCommitsWriter instance.
+    *
+    * @return
+    *   a new ContributorsCommitsWriter
+    */
+  def apply(): ContributorsCommitsWriter = new ContributorsCommitsWriter()
 }

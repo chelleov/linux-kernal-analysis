@@ -27,3 +27,4 @@ data/
 # IntelliJ
 .idea/
 .bsp/
+.DS_Store

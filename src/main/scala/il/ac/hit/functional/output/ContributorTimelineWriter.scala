@@ -3,7 +3,7 @@ package il.ac.hit.functional.output
 import il.ac.hit.functional.analysis.IContributorAnalyzer
 import il.ac.hit.functional.model.ContributorWithId
 import org.apache.spark.sql.{Dataset, SparkSession}
-import scala.util.Try
+import scala.util.{Try, Success, Failure}
 
 /** Writes per-contributor commit timelines to CSV using Spark's write API. For
   * each contributor, filters their commits from the source CSV and writes the
@@ -44,7 +44,10 @@ class ContributorTimelineWriter extends IContributorTimelineWriter {
     // Collect the top contributors to the driver, then extract and write
     // one numbered directory (basePath/<id>) per contributor; each
     // extraction re-reads the source CSV via the analyzer
-    val results = contributors.collect().toList.map { contributor =>
+    val collected = contributors.collect()
+    val errors = scala.collection.mutable.ListBuffer[String]()
+
+    for (contributor <- collected) {
       val outputPath = s"$basePath/${contributor.id}"
       analyzer.contributorTimeline(
         spark,
@@ -52,7 +55,7 @@ class ContributorTimelineWriter extends IContributorTimelineWriter {
         contributor.authorName
       ) match {
         case Left(err) =>
-          Left(s"Failed to get timeline for ${contributor.authorName}: $err")
+          errors += s"Failed to get timeline for ${contributor.authorName}: $err"
         case Right(timeline) =>
           Try {
             timeline
@@ -61,15 +64,18 @@ class ContributorTimelineWriter extends IContributorTimelineWriter {
               .mode("overwrite")
               .option("header", "true")
               .csv(outputPath)
-          }.toEither.left.map(ex =>
-            s"Failed to write timeline for ${contributor.authorName}: ${ex.getMessage}"
-          )
+          } match {
+            case Failure(ex) =>
+              errors += s"Failed to write timeline for ${contributor.authorName}: ${ex.getMessage}"
+            case Success(_) => // ok
+          }
       }
     }
 
     // Fail the whole write if any single contributor's timeline failed;
     // otherwise report success
-    results.find(_.isLeft).getOrElse(Right(()))
+    if (errors.nonEmpty) Left(errors.mkString("; "))
+    else Right(())
   }
 }
 

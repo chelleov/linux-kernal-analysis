@@ -22,6 +22,7 @@ import il.ac.hit.functional.output.{
   ITopContributorsWriter,
   TopContributorsWriter
 }
+import org.apache.spark.sql.Encoders
 import scala.util.Try
 
 /** Application entry point for the Linux Kernel Analysis pipeline.
@@ -96,8 +97,10 @@ object Main {
               "data/commits.csv",
               topN
             )
-            dataset = datasetWithId
-              .map(c => ContributorCount(c.authorName, c.commitCount))
+            rows = datasetWithId.collect()
+            dataset = spark.createDataset(
+              rows.map(c => ContributorCount(c.authorName, c.commitCount))
+            )(Encoders.product[ContributorCount])
             _ <- writer.write(dataset, "data/top_contributors")
             _ <- timelineWriter.write(
               datasetWithId,

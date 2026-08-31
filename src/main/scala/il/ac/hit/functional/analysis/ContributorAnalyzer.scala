@@ -7,7 +7,13 @@ import il.ac.hit.functional.model.{
   ContributorWithId
 }
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
-import org.apache.spark.sql.functions.{count, monotonically_increasing_id}
+import org.apache.spark.sql.functions.{
+  count,
+  initcap,
+  monotonically_increasing_id,
+  regexp_replace,
+  trim
+}
 import scala.util.Try
 
 /** Computes contributor commit statistics using Spark's Dataset API. I/O
@@ -136,15 +142,6 @@ object ContributorAnalyzer {
   /** Creates a new ContributorAnalyzer instance. */
   def apply(): ContributorAnalyzer = new ContributorAnalyzer()
 
-  private val trimName: String => String = _.trim.replaceAll("\\s+", " ")
-  private val capitalizeFirst: String => String = s =>
-    if (s.isEmpty) s else s.charAt(0).toUpper + s.substring(1)
-
-  /** Normalizes an author name by trimming and capitalizing. Composed via
-    * andThen, matching the course's Functions Composition material.
-    */
-  val normalizeName: String => String = trimName andThen capitalizeFirst
-
   /** Pure transformation: computes the top N contributors from an
     * already-loaded raw commits DataFrame. Performs no I/O.
     *
@@ -162,22 +159,21 @@ object ContributorAnalyzer {
   ): Dataset[ContributorCount] = {
     import spark.implicits._
 
-    // Combinator: two primitive predicates combined via the `and` combinator
-    val validContributor = ContributorFilters.and(
-      ContributorFilters.minCommits(1),
-      ContributorFilters.nameContains("")
-    )
-
+    // Normalize author names using built-in Spark SQL functions:
+    // regexp_replace collapses whitespace, trim removes edges, initcap capitalizes
     val authors: Dataset[AuthorRecord] = rawDf
       .filter($"author_name".isNotNull)
-      .map(row => AuthorRecord(normalizeName(row.getAs[String]("author_name"))))
+      .withColumn(
+        "authorName",
+        initcap(trim(regexp_replace($"author_name", "\\s+", " ")))
+      )
+      .as[AuthorRecord]
 
     authors
       .groupBy($"authorName")
       .agg(count("*").as("commitCount"))
       .as[ContributorCount]
-      // closure over validContributor, captured from the enclosing scope inside a Spark transformation
-      .filter(c => validContributor(c))
+      .filter(_.commitCount >= 1)
       .orderBy($"commitCount".desc)
       .limit(topN)
   }
